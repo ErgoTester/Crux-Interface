@@ -34,12 +34,12 @@ const Tokens: FC = () => {
   const router = useRouter()
   const upLg = useMediaQuery(theme.breakpoints.up('lg'))
   const [loading, setLoading] = useState(false)
-  const [currency, setCurrency] = useState<Currencies>('USD')
+  const [currency, setCurrency] = useState<Currencies>('ERG')
   const [ergExchange, setErgExchange] = useState(1)
   const [filteredTokens, setFilteredTokens] = useState<ITokenData[]>([])
   const [filters, setFilters] = useState<IFilters>({})
-  const [sorting, setSorting] = useState<ISorting>({ sort_by: 'Volume', sort_order: 'Desc' })
-  const [queries, setQueries] = useState<IQueries>({ limit: 20, offset: 0 });
+  const [sorting, setSorting] = useState<ISorting>({ sort_by: 'Liquidity', sort_order: 'Desc' })
+  const [queries, setQueries] = useState<IQueries>({ limit: 25, offset: 0 });
   const [timeframe, setTimeframe] = useState<ITimeframe>({ filter_window: 'Day' });
   const [filterModalOpen, setFilterModalOpen] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -50,7 +50,7 @@ const Tokens: FC = () => {
   });
   const [searchString, setSearchString] = useState('')
 
-  const handleCurrencyChange = (e: any, value: 'USD' | 'ERG') => {
+  const handleCurrencyChange = (e: any, value: 'ERG' | 'USD') => {
     if (value !== null) {
       setCurrency(value);
     }
@@ -110,7 +110,7 @@ const Tokens: FC = () => {
         setQueries(prevQueries => {
           return {
             ...prevQueries,
-            offset: prevQueries.offset + 20
+            offset: prevQueries.offset + 25
           }
         })
       }
@@ -138,10 +138,10 @@ const Tokens: FC = () => {
     erg_price_usd,
     ...item
   }: IApiTokenData): Promise<ITokenData> => {
-    const hourChangeKey = currency === "USD" ? "hour_change_usd" : "hour_change_erg";
-    const dayChangeKey = currency === "USD" ? "day_change_usd" : "day_change_erg";
-    const weekChangeKey = currency === "USD" ? "week_change_usd" : "week_change_erg";
-    const monthChangeKey = currency === "USD" ? "month_change_usd" : "month_change_erg";
+    const hourChangeKey = currency === "ERG" ? "hour_change_erg" : "hour_change_usd";
+    const dayChangeKey = currency === "ERG" ? "day_change_erg" : "day_change_usd";
+    const weekChangeKey = currency === "ERG" ? "week_change_erg" : "week_change_usd";
+    const monthChangeKey = currency === "ERG" ? "month_change_erg" : "month_change_usd";
 
     // Check for the icon locally first
     let url = await checkLocalIcon(id);
@@ -202,7 +202,7 @@ const Tokens: FC = () => {
     }
   }, [filters, sorting, timeframe]);
 
-  // grab the next 20 items as the user scrolls to the bottom
+  // grab the next 25 items as the user scrolls to the bottom
   useEffect(() => {
     if (inView && !loading && !noMore) {
       fetchData();
@@ -271,8 +271,8 @@ const Tokens: FC = () => {
         onChange={handleCurrencyChange}
         size="small"
       >
-        <ToggleButton value="USD">USD</ToggleButton>
         <ToggleButton value="ERG">Erg</ToggleButton>
+        <ToggleButton value="USD">USD</ToggleButton>
       </ToggleButtonGroup>
     )
   }
@@ -468,7 +468,7 @@ const Tokens: FC = () => {
                                   </Box>
                                 </Grid>
                                 <Grid xs={2}>
-                                  {currencies[currency] + formatNumber(currency === 'USD' ? token.price * ergExchange : token.price, 4)}
+                                  {currencies[currency] + formatNumber(currency === 'ERG' ? token.price : token.price * ergExchange, 4)}
                                 </Grid>
                                 <Grid xs={1}>
                                   {formatPercent(token.pctChange1h * 100)}
@@ -484,10 +484,10 @@ const Tokens: FC = () => {
                                 </Grid>
                                 <Grid xs={1}>
                                   <Typography>
-                                    V {currencies[currency] + formatNumber(currency === 'USD' ? token.vol * ergExchange : token.vol, 2)}
+                                    V {currencies[currency] + formatNumber(currency === 'ERG' ? token.vol : token.vol * ergExchange, 2)}
                                   </Typography>
                                   <Typography>
-                                    L {currencies[currency] + formatNumber(currency === 'USD' ? token.liquidity * ergExchange : token.liquidity, 2)}
+                                    L {currencies[currency] + formatNumber(currency === 'ERG' ? token.liquidity : token.liquidity * ergExchange, 2)}
                                   </Typography>
                                 </Grid>
                                 <Grid xs={1}>
@@ -495,7 +495,7 @@ const Tokens: FC = () => {
                                     T {token.buys + token.sells}
                                   </Typography>
                                   <Typography>
-                                    M {currencies[currency] + formatNumber(currency === 'USD' ? token.mktCap * ergExchange : token.mktCap, 2)}
+                                    M {currencies[currency] + formatNumber(currency === 'ERG' ? token.mktCap : token.mktCap * ergExchange, 2)}
                                   </Typography>
                                 </Grid>
                                 <Grid xs={1}>
@@ -620,7 +620,7 @@ const Tokens: FC = () => {
                                 </Grid>
                                 <Grid xs={4} sm={3}>
                                   <Typography>
-                                    {currencies[currency] + formatNumber(currency === 'USD' ? token.price * ergExchange : token.price, 4)}
+                                    {currencies[currency] + formatNumber(currency === 'ERG' ? token.price : token.price * ergExchange, 4)}
                                   </Typography>
                                   <Typography>
                                     {formatPercent(token.pctChange1d * 100)}
@@ -628,7 +628,7 @@ const Tokens: FC = () => {
                                 </Grid>
                                 <Grid xs={4} sm={3}>
                                   <Typography>
-                                    V {currencies[currency] + formatNumber(currency === 'USD' ? token.vol * ergExchange : token.vol, 2)}
+                                    V {currencies[currency] + formatNumber(currency === 'ERG' ? token.vol : token.vol * ergExchange, 2)}
                                   </Typography>
                                   <Typography>
                                     T {token.buys + token.sells}
