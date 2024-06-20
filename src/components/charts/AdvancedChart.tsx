@@ -65,17 +65,6 @@ export const TVChartContainer: FC<TVProps> = ({ defaultWidgetProps, currency, he
         }
       });
 
-      // Add volume to a separate pane
-      chart.createStudy('Volume', false, true);
-
-      // Capture changes in settings
-      chart.onIntervalChanged().subscribe(null, () => {
-        updateChartSettings(chart);
-      });
-      chart.onVisibleRangeChanged().subscribe(null, () => {
-        updateChartSettings(chart);
-      });
-
       function updateChartSettings(chart: IChartWidgetApi) {
         const currentSettings = {
           interval: chart.resolution(),
