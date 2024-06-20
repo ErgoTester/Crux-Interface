@@ -54,20 +54,21 @@ export const formatNumber = (
     return rounded.toString();
   };
 
-  if (absNum >= 1000000000000) {
-    return sign + (absNum / 1000000000000).toFixed(2).replace(/\.0$/, "") + "T";
-  } else if (absNum >= 1000000000) {
-    return sign + (absNum / 1000000000).toFixed(2).replace(/\.0$/, "") + "B";
-  } else if (absNum >= 1000000) {
-    return sign + (absNum / 1000000).toFixed(2).replace(/\.0$/, "") + "M";
-  } else if (absNum >= 1000) {
-    return sign + (absNum / 1000).toFixed(1).replace(/\.0$/, "") + "K";
+  if (absNum >= 1e18) { // 1 quintillion
+    return sign + (absNum / 1e18).toFixed(2).replace(/\.0$/, '') + 'Qi';
+  } else if (absNum >= 1e15) { // 1 quadrillion
+    return sign + (absNum / 1e15).toFixed(2).replace(/\.0$/, '') + 'Q';
+  } else if (absNum >= 1e12) { // 1 trillion
+    return sign + (absNum / 1e12).toFixed(2).replace(/\.0$/, '') + 'T';
+  } else if (absNum >= 1e9) { // 1 billion
+    return sign + (absNum / 1e9).toFixed(2).replace(/\.0$/, '') + 'B';
+  } else if (absNum >= 1e6) { // 1 million
+    return sign + (absNum / 1e6).toFixed(2).replace(/\.0$/, '') + 'M';
   } else if (fixed && absNum < 10) {
     return sign + absNum.toFixed(sigFig);
   } else if (absNum >= 1) {
     // Round numbers close to whole numbers
-    const rounded =
-      Math.round(absNum * Math.pow(10, sigFig)) / Math.pow(10, sigFig);
+    const rounded = Math.round(absNum * Math.pow(10, sigFig)) / Math.pow(10, sigFig);
     return sign + parseFloat(rounded.toFixed(sigFig)).toString();
   } else {
     return sign + formatSmallNumber(absNum);
