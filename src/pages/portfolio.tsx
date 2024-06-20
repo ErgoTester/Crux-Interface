@@ -462,10 +462,10 @@ const Portfolio = () => {
                 exchangeRate={exchangeRate}
               />
             </Paper>
-          </Grid>
+          </Grid> */}
         </Grid>
       </Box>
-      <Box sx={{ mb: 2 }}>
+      {/* <Box sx={{ mb: 2 }}>
         <Positions
           currency={currency}
           setCurrency={setCurrency}
