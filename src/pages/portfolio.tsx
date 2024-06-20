@@ -435,7 +435,7 @@ const Portfolio = () => {
               />
             </Paper>
           </Grid>
-          <Grid xs={12} sm={6} lg={3} sx={{ position: "relative", zIndex: 10 }}>
+          {/* <Grid xs={12} sm={6} lg={3} sx={{ position: "relative", zIndex: 10 }}>
             <Paper variant="outlined" sx={{ p: 3, width: "100%", height: "100%" }}>
               <ValueLocked
                 currency={currency}
@@ -485,7 +485,7 @@ const Portfolio = () => {
           setCurrency={setCurrency}
           addressList={submittedAddressList}
         />
-      </Box>
+      </Box> */}
     </>
   );
 };
