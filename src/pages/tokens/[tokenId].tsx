@@ -237,12 +237,12 @@ const TokenInfo: FC = () => {
               )}
             </Box>
             {upMd && (
-              <Box sx={{ display: 'flex', flex: '0 0 300px', mb: 2 }}>
-                <Box sx={{ width: '100%', }}>
-                  <Paper variant="outlined" sx={{ p: 2, width: '100%', position: 'sticky', top: '16px', height: { md: '100%', lg: 'calc(100vh - 32px)' }, maxHeight: '100%', mb: { md: 0, lg: -2 } }}>
-                    <TokenStats currency={currency} tokenInfo={tokenInfo} />
-                  </Paper>
-                </Box>
+              <Box sx={{ flex: '0 0 300px', alignSelf: 'stretch' }}>
+                <Paper
+                  variant="outlined"
+                  sx={{ p: 2, width: '100%', height: '100%', display: 'flex', flexDirection: 'column',}} >
+                  <TokenStats currency={currency} tokenInfo={tokenInfo} />
+                </Paper>
               </Box>
             )}
           </Box>
