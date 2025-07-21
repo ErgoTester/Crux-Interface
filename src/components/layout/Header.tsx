@@ -35,26 +35,30 @@ import { useScrollLock } from "@contexts/ScrollLockContext";
 const pages = [
   {
     name: "Tokens",
-    link: "/tokens",
+    link: "/",
   },
   {
     name: "Portfolio",
     link: "/portfolio",
   },
-  {
-    name: "Alerts",
-    link: "/alerts",
-    disabled: true,
-  },
-  {
-    name: "Trading Floor",
-    link: "/trading-floor",
-    disabled: true,
-  },
+  // {
+  //   name: "Alerts",
+  //   link: "/alerts",
+  //   disabled: true,
+  // },
+  // {
+  //   name: "Trading Floor",
+  //   link: "/trading-floor",
+  //   disabled: true,
+  // },
   {
     name: "Accounting",
     link: "/accounting"
   },
+  {
+    name: "About",
+    link: "/about",
+  }
 ];
 
 interface INavItemProps {
@@ -335,6 +339,12 @@ const Header: FC<IHeaderProps> = ({ }) => {
         open={navbarOpen}
         onClose={handleNavbarDialogClose}
         fullScreen
+        sx={{
+          '& .MuiBackdrop-root': {
+            backdropFilter: 'blur(3px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)'
+          }
+        }}
       >
         <DialogContent>
           <IconButton
