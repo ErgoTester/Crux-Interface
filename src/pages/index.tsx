@@ -1,536 +1,658 @@
-import React, { memo, useEffect } from "react";
-import type { NextPage } from "next";
+import { FC, useState, useEffect } from 'react';
 import {
   Container,
   Typography,
+  Box,
+  Paper,
   useTheme,
   useMediaQuery,
-  Grid,
   Button,
-  Box,
-  Stack,
-  Paper,
-  Grow,
-  List,
-  ListItem,
-  TextField,
-} from "@mui/material";
+  ToggleButtonGroup,
+  ToggleButton,
+  Avatar,
+  CircularProgress,
+  IconButton,
+  InputBase,
+  TextField
+} from '@mui/material';
+import Grid from '@mui/material/Unstable_Grid2';
+import TokenSort from '@components/tokens/TokenSort'
+import TokenFilterOptions from '@components/tokens/Filters'
+import { formatNumber } from '@lib/utils/general';
+import { useRouter } from 'next/router';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import { currencies, Currencies } from '@lib/utils/currencies';
 import { useInView } from "react-intersection-observer";
-import wideBg from "@public/city-tiltshift3.jpg";
-import Timeline, { ITimelineItem } from "@components/Timeline";
-import { styled } from "@mui/system";
-import MemoizedFeatureList from "@components/MemoizedFeatureList";
-import Feature, { IFeature } from "@components/Feature";
-import ButtonLink from "@components/ButtonLink";
-import Tokenomics, { TokenomicsData } from "@components/Tokenomics";
-import BlobHero from "@components/svgs/BlobHero";
-import Image from "next/image";
-import BlobTokenomics from "@components/svgs/BlobTokenomics";
-import { trpc } from "@lib/trpc";
+import BouncingDotsLoader from '@components/DotLoader';
+import { checkLocalIcon, getIconUrlFromServer } from '@lib/utils/icons';
+import SearchIcon from '@mui/icons-material/Search';
+import YoutubeSearchedForIcon from '@mui/icons-material/YoutubeSearchedFor';
 
-const timeline: ITimelineItem[] = [
-  {
-    date: "Q3 2023",
-    listItems: [
-      "July 1st. Open phase-one funding round.",
-      "End of July: Work commences towards milestone one.",
-    ],
-  },
-  {
-    date: "Q4 2023",
-    listItems: [
-      "November: Launch liquidity pool",
-      "December: Release Portfolio Management platform with charting package.",
-      "December: Launch phase-two funding round after completion of milestone one.",
-      "December: Open subscriptions to early supporters.",
-    ],
-  },
-  {
-    date: "Q1 2024",
-    listItems: ["January: Locked liquidity providers begin accruing rewards."],
-  },
-  {
-    date: "Q2 2024",
-    listItems: [
-      "Deliver Q1/24 report subscriber metrics, updated token metrics, total burnt tokens to date, new total maximum token supply.",
-      "June: Launch comprehensive trading platform.",
-    ],
-  },
-];
 
-const StyledList = styled(List)({
-  listStyle: "disc",
-  listStyleType: "disc",
-  // listStylePosition: 'inside',
-  padding: 0,
-  marginLeft: "32px",
-  marginBottom: "2rem",
-  "& li": {
-    display: "list-item",
-    paddingLeft: "6px",
-  },
-});
+const Tokens: FC = () => {
+  const theme = useTheme()
+  const router = useRouter()
+  const upLg = useMediaQuery(theme.breakpoints.up('lg'))
+  const [loading, setLoading] = useState(false)
+  const [currency, setCurrency] = useState<Currencies>('ERG')
+  const [ergExchange, setErgExchange] = useState(1)
+  const [filteredTokens, setFilteredTokens] = useState<ITokenData[]>([])
+  const [filters, setFilters] = useState<IFilters>({})
+  const [sorting, setSorting] = useState<ISorting>({ sort_by: 'Liquidity', sort_order: 'Desc' })
+  const [queries, setQueries] = useState<IQueries>({ limit: 25, offset: 0 });
+  const [timeframe, setTimeframe] = useState<ITimeframe>({ filter_window: 'Day' });
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const [noMore, setNoMore] = useState(false)
+  const [error, setError] = useState<string | undefined>(undefined)
+  const [view, inView] = useInView({
+    threshold: 0,
+  });
+  const [searchString, setSearchString] = useState('')
 
-const StyledListItem = styled(ListItem)({
-  display: "list-item",
-  paddingTop: 0,
-});
+  const handleCurrencyChange = (e: any, value: 'ERG' | 'USD') => {
+    if (value !== null) {
+      setCurrency(value);
+    }
+  };
 
-const features: IFeature[] = [
-  {
-    title: "Portfolio Manager & Charting Package",
-    content: (
-      <Typography variant="subtitle1">
-        Manage your portfolio, track P&amp;L, follow your investments, and see a
-        summary of every trade you made in a given time period. Visualize
-        ecosystem orderflow for traded assets including NFTs, follow whale
-        movements, and add custom reports with future modeling. From basic tools
-        to advanced features, everything is at your fingertips, through charting
-        tools including Simple & Exponential Moving Averages, Fibonacci
-        Retracements & Extensions, RSI, MACD, Volume metrics, Trendlines & more.
+  const handleTimeframeChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newTimeframe: 'Hour' | 'Day' | 'Week' | 'Month',
+  ) => {
+    if (newTimeframe !== null && newTimeframe !== undefined) setTimeframe({ filter_window: newTimeframe });
+  };
+
+  async function fetchTokenData(
+    filters: IFilters,
+    sorting: ISorting,
+    queries: IQueries,
+    timeframe: ITimeframe,
+    inputtedSearchString: string
+  ) {
+    setLoading(true);
+    try {
+      setError(undefined)
+
+      const endpoint = `${process.env.CRUX_API}/spectrum/token_list`;
+      const payload = {
+        ...filters,
+        ...sorting,
+        ...queries,
+        ...timeframe,
+        "name_filter": inputtedSearchString
+      };
+      // console.log(payload);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data: IApiTokenData[] = await response.json();
+      // console.log(data);
+      if (data.length === 0) setNoMore(true)
+      else {
+        setNoMore(false)
+        const awaitedData = await Promise.all(data.map((item) => {
+          const tokenData = mapApiDataToTokenData(item)
+          return tokenData
+        }))
+        if (queries.offset === 0) {
+          setFilteredTokens(awaitedData)
+          setErgExchange(data[0].erg_price_usd)
+        }
+        else {
+          setFilteredTokens(prev => [...prev, ...awaitedData])
+        }
+        setQueries(prevQueries => {
+          return {
+            ...prevQueries,
+            offset: prevQueries.offset + 25
+          }
+        })
+      }
+      // setInitialLoading(false)
+    } catch (error) {
+      console.error('Error fetching token data:', error);
+      setError('Error loading tokens')
+    } finally {
+      setLoading(false);
+      setInitialLoading(false)
+      setSearchLoading(false)
+    }
+  }
+
+  const mapApiDataToTokenData = async ({
+    name,
+    ticker,
+    id,
+    volume,
+    liquidity,
+    buys,
+    sells,
+    market_cap,
+    price_erg,
+    erg_price_usd,
+    ...item
+  }: IApiTokenData): Promise<ITokenData> => {
+    const hourChangeKey = currency === "ERG" ? "hour_change_erg" : "hour_change_usd";
+    const dayChangeKey = currency === "ERG" ? "day_change_erg" : "day_change_usd";
+    const weekChangeKey = currency === "ERG" ? "week_change_erg" : "week_change_usd";
+    const monthChangeKey = currency === "ERG" ? "month_change_erg" : "month_change_usd";
+
+    // Check for the icon locally first
+    let url = await checkLocalIcon(id);
+
+    // Otherwise, check the server for it
+    if (!url) {
+      url = await getIconUrlFromServer(id);
+    }
+
+    return {
+      name,
+      ticker,
+      tokenId: id,
+      icon: url || '',
+      price: price_erg,
+      pctChange1h: item[hourChangeKey],
+      pctChange1d: item[dayChangeKey],
+      pctChange1w: item[weekChangeKey],
+      pctChange1m: item[monthChangeKey],
+      vol: volume,
+      liquidity,
+      buys,
+      sells,
+      mktCap: market_cap,
+    };
+  };
+
+  const fetchData = async (reset?: boolean) => {
+    if (reset) {
+
+      setQueries(prevQueries => {
+        return {
+          ...prevQueries,
+          offset: 0
+        }
+      })
+      setFilteredTokens([])
+      await fetchTokenData(filters, sorting, { ...queries, offset: 0 }, timeframe, searchString);
+    }
+    else fetchTokenData(filters, sorting, queries, timeframe, searchString);
+  };
+
+  // // page-load
+  // useEffect(() => {
+  //   if (initialLoading) {
+  //     fetchData();
+  //     console.log('init')
+  //     setInitialLoading(false)
+  //   }
+  // }, []);
+
+  // Reset the query to 0 and load the new list with appropriate filters and sorting
+  useEffect(() => {
+    if (!initialLoading) {
+      setInitialLoading(true)
+      // console.log('fetching filters or sorting or timeframe')
+      fetchData(true);
+    }
+  }, [filters, sorting, timeframe]);
+
+  // grab the next 25 items as the user scrolls to the bottom
+  useEffect(() => {
+    if (inView && !loading && !noMore) {
+      fetchData();
+    }
+    // console.log('inView')
+  }, [inView]);
+
+  useEffect(() => {
+    if (!initialLoading) {
+      setInitialLoading(true)
+      fetchData(true);
+    }
+  }, [currency])
+
+  const numberFilters = Math.round(Object.keys(filters).length / 2)
+
+  const formatPercent = (pct: number) => {
+    return (
+      <Typography
+        sx={{
+          color: pct < 0 ? theme.palette.down.main : pct > 0 ? theme.palette.up.main : theme.palette.text.secondary
+        }}
+      >
+        {formatNumber(pct * 0.01, 2, true)}%
       </Typography>
-    ),
-    image: "/charts.png",
-    imageAlt: "Financial Charts",
-  },
-  {
-    title: "Notifications & Alerts",
-    content: (
-      <Typography variant="subtitle1">
-        When trading, it&apos;s important to respond quickly to market changes.
-        Crux&apos;s notification system allows you to set custom notifications
-        for all tracked events. Examples include P2P, staking, redeeming, swaps,
-        liquidity provisions, yield farming, lending, borrowing, nft
-        sales/purchases, and bridging tx&apos;s. Anytime an address is engaged,
-        you will have the choice to receive a timely, detailed notification of
-        the event that&apos;s occurring.
-      </Typography>
-    ),
-    image: "/alert2.png",
-    imageAlt: "Mobile Notification",
-  },
-  {
-    title: "Accounting Tools",
-    content: (
-      <Typography variant="subtitle1">
-        One of the most important features of any trading platform is tax
-        reporting. Add any number of tracked wallets and Crux will print out a
-        detailed description of all transactions. Download in CSV formats
-        compatible with a variety of platforms and simplify your annual
-        accounting, saving you time and money.
-      </Typography>
-    ),
-    image: "/accountant.png",
-    imageAlt: "Accountant",
-  },
-  {
-    title: "Trading Floor",
-    content: (
-      <>
-        <Typography variant="subtitle1">
-          Interact with all the popular Ergo smart contracts and tools without
-          ever leaving the app, including but not limited to:
-        </Typography>
-        <StyledList dense>
-          <StyledListItem>Trade (AMM/Orderbook)</StyledListItem>
-          <StyledListItem>Lend/borrow (Sigmafi/duckpools/EXLE)</StyledListItem>
-          <StyledListItem>SigUSD, dexy, mint redeem</StyledListItem>
-          <StyledListItem>
-            Provide LP/Yield farm (Spectrum/duckpools)
-          </StyledListItem>
-          <StyledListItem>Ergopad; stake, redeem vested tokens</StyledListItem>
-          <StyledListItem>Grid trading bots</StyledListItem>
-          <StyledListItem>Sigma O Options panel</StyledListItem>
-          <StyledListItem>Rosen Bridge (with liquidity panel)</StyledListItem>
-          <StyledListItem>
-            Babel fee liquidity provision/visualization
-          </StyledListItem>
-        </StyledList>
-      </>
-    ),
-    image: "/desk-screens.png",
-    imageAlt: "Trading Desk",
-  },
-];
+    )
+  }
 
-const inViewOptions = {
-  threshold: 1,
-  triggerOnce: true,
-};
+  const handleSearchStringChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const newString = e.target.value
+    setSearchString(newString)
+    // console.log(searchString)
+  }
 
-const Home: NextPage = () => {
-  const theme = useTheme();
-  // const trigger = useScrollTrigger({ threshold: 800 });
-  const upMd = useMediaQuery(theme.breakpoints.up("md"));
-  const [ref5, inView5] = useInView(inViewOptions);
-  // const [ref6, inView6] = useInView({ ...inViewOptions, threshold: 0.3 });
+  const handleEnterKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      handleSearchSubmit();
+    }
+  };
 
-  // const logoLinkSx = {
-  //   display: "block",
-  //   color: theme.palette.text.primary,
-  //   "&:hover": {
-  //     "& .MuiSvgIcon-root": {
-  //       color: theme.palette.primary.main,
-  //     },
-  //   },
-  // };
+  const [triggerSearchFetch, setTriggerSearchFetch] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const handleSearchSubmit = () => {
+    setSearchLoading(true)
+    setQueries(prevQueries => {
+      return {
+        ...prevQueries,
+        offset: 0
+      }
+    })
+    setTriggerSearchFetch(true)
+  }
+
+  useEffect(() => {
+    if (triggerSearchFetch) {
+      fetchData(true);
+      setTriggerSearchFetch(false)
+    }
+  }, [triggerSearchFetch])
+
+  const CurrencyToggleButton: FC = () => {
+    return (
+      <ToggleButtonGroup
+        value={currency}
+        exclusive
+        onChange={handleCurrencyChange}
+        size="small"
+      >
+        <ToggleButton value="ERG">Erg</ToggleButton>
+        <ToggleButton value="USD">USD</ToggleButton>
+      </ToggleButtonGroup>
+    )
+  }
 
   return (
-    <>
-      {/* Hero section */}
-      <Box
-        sx={{
-          mt: "-114px",
-          maxHeight: "800px",
-          minHeight: "600px",
-          height: "100vh",
-        }}
-        id="top"
-      >
-        <Container sx={{ position: "relative", height: "100%" }}>
-          <Box
+    <Container>
+      <Box sx={{ mb: 2, display: 'flex', flexDirection: upLg ? 'row' : 'column', gap: 2 }}>
+        <Box>
+          <Grid container alignItems="center" spacing={2} justifyContent="space-between">
+            <Grid xs="auto">
+              <TokenSort sorting={sorting} setSorting={setSorting} />
+            </Grid>
+            <Grid xs="auto">
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={timeframe.filter_window}
+                onChange={handleTimeframeChange}
+              >
+                <ToggleButton value="Hour">
+                  H
+                </ToggleButton>
+                <ToggleButton value="Day">
+                  D
+                </ToggleButton>
+                <ToggleButton value="Week">
+                  W
+                </ToggleButton>
+                <ToggleButton value="Month">
+                  M
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+            <Grid xs="auto">
+              <Button
+                variant="contained"
+                onClick={() => setFilterModalOpen(!filterModalOpen)}
+                startIcon={<FilterAltIcon />}
+              >
+                Filters {numberFilters > 0 && '(' + numberFilters + ')'}
+              </Button>
+            </Grid>
+            <Grid sx={{ display: upLg ? 'none' : 'flex' }} xs="auto">
+              <CurrencyToggleButton />
+            </Grid>
+          </Grid>
+        </Box>
+        <Box sx={{ flexGrow: 1 }}>
+          <TextField
+            id="search-field"
+            variant="filled"
+            value={searchString}
+            onChange={handleSearchStringChange}
+            onKeyDown={handleEnterKeyPress}
+            fullWidth
+            placeholder="Search"
+            disabled={searchLoading}
             sx={{
-              position: "absolute",
-              top: "calc(50% + 70px)",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: -1,
-              height: "551",
+              '& .Mui-disabled': {
+                borderColor: theme.palette.text.disabled
+              }
             }}
-          >
-            <Image
-              src="/backgrounds/hero.png"
-              width="597"
-              height="551"
-              alt={"background"}
-            />
-          </Box>
-          <BlobHero
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: -2,
+            InputProps={{
+              endAdornment: (
+                <IconButton onClick={handleSearchSubmit} aria-label="search" edge="end" sx={{ borderRadius: 0 }}>
+                  {searchLoading ? <YoutubeSearchedForIcon /> : <SearchIcon />}
+                </IconButton>
+              )
             }}
           />
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 5,
-              height: "100%",
-              pt: "70px",
-            }}
-          >
-            <Box>
-              <Box>
-                <Typography
-                  variant="h2"
-                  fontWeight={700}
-                  gutterBottom
-                  align="center"
-                  sx={{
-                    background: `linear-gradient(90deg, ${theme.palette.secondary.dark} 10%, ${theme.palette.primary.dark} 80%)`,
-                    backgroundClip: "text",
-                    textFillColor: "transparent",
-                    mb: 5,
-                    maxWidth: "750px",
-                  }}
-                >
-                  Feature rich DeFi tools for the Ergo Ecosystem
-                </Typography>
-              </Box>
-              <Box>
-                <Typography
-                  variant="h6"
-                  align="center"
-                  paragraph
-                  sx={{ maxWidth: "720px", mb: 5 }}
-                >
-                  Track your portolio and interact with eUTXO DeFi in one place.
-                  Set alerts, place orders, monitor P&L, and even print tax
-                  reports.
-                </Typography>
-              </Box>
-
-              <Stack
-                sx={{ pt: 3 }}
-                direction="row"
-                spacing={4}
-                justifyContent="center"
-              >
-                <Button
-                  variant="contained"
-                  href="https://ergopad.io/projects/cruxfinance"
-                  target="_blank"
-                  sx={{
-                    color: theme.palette.text.primary,
-                    padding: upMd ? "16px 40px !important" : "",
-                    fontSize: upMd ? "18px" : "16px",
-                    fontWeight: 700,
-                    borderRadius: "16px",
-                  }}
-                >
-                  IDO Info
-                </Button>
-                <Button
-                  variant="outlined"
-                  href="https://docs.cruxfinance.io"
-                  target="_blank"
-                  sx={{
-                    padding: upMd ? "16px 40px !important" : "",
-                    fontSize: upMd ? "18px" : "16px",
-                    fontWeight: 700,
-                    borderRadius: "16px",
-                    borderWidth: "2px",
-                    "&:hover": {
-                      borderWidth: "2px",
-                    },
-                  }}
-                >
-                  Whitepaper
-                </Button>
-              </Stack>
-            </Box>
-          </Box>
-        </Container>
-      </Box>
-      {/* End hero section */}
-
-      {/* Features */}
-      <Container sx={{ position: "relative", mb: 24 }} id="features">
-        <Grid container sx={{ mb: 3 }}>
-          <Grid item md={1}></Grid>
-          <Grid item md={10}>
-            <Typography
-              variant="h2"
-              fontWeight={600}
-              gutterBottom
-              sx={{ textAlign: "center" }}
-            >
-              Platform Features
-            </Typography>
-          </Grid>
-          <Grid item md={1}></Grid>
-        </Grid>
-        {/* {features.map((item, i) => {
-          const key = uuidv4()
-          return (
-            <MemoFeature
-              title={item.title}
-              content={item.content}
-              image={item.image}
-              imageAlt={item.imageAlt}
-              index={i}
-              key={key}
-            />
-          )
-        })} */}
-        <MemoizedFeatureList features={features} />
-      </Container>
-      {/* END features */}
-
-      {/* Roadmap */}
-      <Container sx={{ mb: 24, position: "relative" }} id="roadmap">
-        <BlobTokenomics
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: -2,
-          }}
-        />
-        <Grid container sx={{ mb: 3 }} ref={ref5}>
-          <Grid item md={1}></Grid>
-          <Grid item md={10}>
-            <Typography
-              variant="h2"
-              fontWeight={600}
-              gutterBottom
-              sx={{ textAlign: "center" }}
-            >
-              Roadmap
-            </Typography>
-          </Grid>
-          <Grid item md={1}></Grid>
-        </Grid>
-        <Grow in={inView5} {...(inView5 ? { timeout: 500 } : {})}>
-          <Box>
-            <Timeline timeline={timeline} />
-          </Box>
-        </Grow>
-      </Container>
-
-      {/* Tokenomics */}
-      <Container
-        sx={{ mb: 12, position: "relative", display: "block" }}
-        id="tokenomics"
-      >
-        <Grid container sx={{ mb: 6 }}>
-          <Grid item md={1}></Grid>
-          <Grid item md={10}>
-            <Typography
-              variant="h2"
-              fontWeight={600}
-              gutterBottom
-              sx={{ textAlign: "center" }}
-            >
-              Tokenomics
-            </Typography>
-          </Grid>
-          <Grid item md={1}></Grid>
-          <Grid item md={3}></Grid>
-          <Grid item md={6}>
-            <Typography gutterBottom sx={{ textAlign: "center" }}>
-              The Crux token serves as the platform&apos;s primary payment
-              option, providing subscribers a 30% discount, distributing 25% of
-              revenue to staked token holders, and offering yield farming and a
-              loyalty program based on user metrics.
-            </Typography>
-          </Grid>
-          <Grid item md={3}></Grid>
-        </Grid>
-        {/* <Box sx={{
-            p: 2,
-            background: 'linear-gradient(106deg, rgba(56.42, 56.81, 62.69, 0.45) 0%, rgba(73.63, 74.14, 81.81, 0.33) 100%)',
-            boxShadow: '3px 3px 9px rgba(0, 0, 0, 0.50)',
-            borderRadius: '8px',
-            backdropFilter: 'blur(10px)',
-            justifyContent: 'center',
-            alignItems: 'flex-start',
-          }}>
-            <Box sx={{
-              textAlign: 'center',
-              color: '#F87E79',
-              fontSize: 24,
-              fontFamily: 'Bai Jamjuree',
-              fontWeight: '700',
-              wordWrap: 'break-word'
-            }}>Test Glass</Box>
-          </Box> */}
-        {/* <Feature
-          {...{
-            title: 'Overview',
-            content: <Typography variant="subtitle1">
-              The Crux token&apos;s central utility is to serve as the platform&apos;s primary payment option. Discounts will be granted to subscribers who opt to pay dues using Crux. Paying subscription dues using the Crux token will award subscribers a 30% discount. In addition, 25% of platform revenue will be distributed to token holders who have staked their tokens. There will be yield farming with heavy distributions to early liquidity providers, and a loyalty program based on user metrics.
-            </Typography>,
-            image: '/crux-tokenomics-no-title.png',
-            imageAlt: 'Crux Tokenomics Pie Chart',
-            index: 0,
-            aspect: '878 / 566'
-          }} /> */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Box sx={{ width: "100%", textAlign: "center" }}>
-            <Image
-              src="/tokenomics.png"
-              alt="tokenomics"
-              width={555} // Original width of your image
-              height={266} // Original height of your image
-              style={{ maxWidth: "100%", height: "auto" }} // This will scale the image responsively
-            />
-          </Box>
         </Box>
-        <Grid container>
-          <Grid item md={1}></Grid>
-          <Grid item xs={12} md={10}>
-            <Tokenomics
-              data={tokenomicsData}
-              total={100000000}
-              name="Crux Finance"
-              ticker="CRUX"
-            />
-          </Grid>
-          <Grid item md={1}></Grid>
-        </Grid>
-      </Container>
-    </>
-  );
-};
+        <Box sx={{ textAlign: 'right', display: upLg ? 'flex' : 'none' }}>
+          <CurrencyToggleButton />
+        </Box>
+      </Box>
 
-const tokenomicsData: TokenomicsData[] = [
-  {
-    name: "Phase 1",
-    amount: 10000000,
-    value: 0.01,
-    pct: "10%",
-    tge: "-",
-    length: "10 Months",
-    lockup: "5 Months",
-  },
-  {
-    name: "Phase 2",
-    amount: 12000000,
-    value: 0.015,
-    pct: "12%",
-    tge: "-",
-    length: "6 Months",
-    lockup: "4 Months",
-  },
-  {
-    name: "Liquditiy DEX",
-    amount: 1500000,
-    value: 0.02,
-    pct: "1.5%",
-    tge: "100%",
-    length: "-",
-    lockup: "None",
-  },
-  {
-    name: "Marketing",
-    amount: 3500000,
-    value: "-",
-    pct: "3.5%",
-    tge: "100%",
-    length: "-",
-    lockup: "None",
-  },
-  {
-    name: "Treasury - Platform Expansion",
-    amount: 22000000,
-    value: "-",
-    pct: "22%",
-    tge: "100%",
-    length: "-",
-    lockup: "None",
-  },
-  {
-    name: "Loyalty Program",
-    amount: 20000000,
-    value: "-",
-    pct: "20%",
-    tge: "-",
-    length: "60 Months ",
-    lockup: "8 Months",
-  },
-  {
-    name: "Liquidity Incentives",
-    amount: 16000000,
-    value: "-",
-    pct: "16%",
-    tge: "-",
-    length: "12 Months",
-    lockup: "1 Months",
-  },
-  {
-    name: "Team",
-    amount: 15000000,
-    value: "-",
-    pct: "15%",
-    tge: "-",
-    length: "15 Months",
-    lockup: "8 Months",
-  },
-];
+      <TokenFilterOptions filters={filters} setFilters={setFilters} open={filterModalOpen} setOpen={setFilterModalOpen} />
 
-export default Home;
+      <Paper variant="outlined" sx={{ position: 'relative' }}>
+        {upLg
+          ? (
+            <>
+              <Box sx={{ py: 1 }}>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid xs={3}>
+                    <Typography sx={{ ml: 2 }}>
+                      Token
+                    </Typography>
+                  </Grid>
+                  <Grid xs={2}>
+                    Price
+                  </Grid>
+                  <Grid xs={1}>
+                    H
+                  </Grid>
+                  <Grid xs={1}>
+                    D
+                  </Grid>
+                  <Grid xs={1}>
+                    W
+                  </Grid>
+                  <Grid xs={1}>
+                    M
+                  </Grid>
+                  <Grid xs={1}>
+                    <Typography>
+                      Volume
+                    </Typography>
+                    <Typography>
+                      Liquidity
+                    </Typography>
+                  </Grid>
+                  <Grid xs={1}>
+                    <Typography>
+                      Transactions
+                    </Typography>
+                    <Typography>
+                      Market Cap
+                    </Typography>
+                  </Grid>
+                  <Grid xs={1}>
+                    <Typography>
+                      Buys
+                    </Typography>
+                    <Typography>
+                      Sells
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+              <Box sx={{
+                // height: 'calc(100vh - 200px)', 
+                // overflowY: 'scroll',
+                overflowX: 'hidden'
+              }}>
+                {loading && initialLoading
+                  ? (
+                    <Box sx={{ position: 'relative', minHeight: '300px' }}>
+                      <Box sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                        <Box sx={{ mb: 2 }}>
+                          <CircularProgress size={60} />
+                        </Box>
+                        <Typography>
+                          Loading assets...
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ) : error ? (
+                    <Box sx={{ position: 'relative', minHeight: '300px' }}>
+                      <Box sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                        <Typography sx={{ mb: 2 }}>
+                          {error}
+                        </Typography>
+                        <Button variant="outlined" onClick={() => window.location.reload()}>
+                          Reload the page
+                        </Button>
+                      </Box>
+                    </Box>
+                  )
+                    : (
+                      <>
+                        {filteredTokens.map((token, i) => {
+                          return (
+                            <Box key={`${token.tokenId}-${i}`}
+                              sx={{
+                                py: 1,
+                                background: i % 2 ? '' : theme.palette.background.paper,
+                                userSelect: 'none',
+                                '&:hover': {
+                                  background: theme.palette.background.hover,
+                                  cursor: 'pointer'
+                                }
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                router.push(`/tokens/${token.tokenId}`)
+                              }}
+                            >
+                              <Grid container spacing={2} alignItems="center">
+                                <Grid xs={3}>
+                                  <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 2, ml: 1 }}>
+                                    <Box sx={{ display: 'flex' }}>
+                                      <Avatar src={token.icon} sx={{ width: '48px', height: '48px' }} />
+                                    </Box>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                      <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {token.name}
+                                      </Typography>
+                                      <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {token.ticker.toUpperCase()}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                </Grid>
+                                <Grid xs={2}>
+                                  {currencies[currency] + formatNumber(currency === 'ERG' ? token.price : token.price * ergExchange, 4)}
+                                </Grid>
+                                <Grid xs={1}>
+                                  {formatPercent(token.pctChange1h * 100)}
+                                </Grid>
+                                <Grid xs={1}>
+                                  {formatPercent(token.pctChange1d * 100)}
+                                </Grid>
+                                <Grid xs={1}>
+                                  {formatPercent(token.pctChange1w * 100)}
+                                </Grid>
+                                <Grid xs={1}>
+                                  {formatPercent(token.pctChange1m * 100)}
+                                </Grid>
+                                <Grid xs={1}>
+                                  <Typography>
+                                    V {currencies[currency] + formatNumber(currency === 'ERG' ? token.vol : token.vol * ergExchange, 2)}
+                                  </Typography>
+                                  <Typography>
+                                    L {currencies[currency] + formatNumber(currency === 'ERG' ? token.liquidity : token.liquidity * ergExchange, 2)}
+                                  </Typography>
+                                </Grid>
+                                <Grid xs={1}>
+                                  <Typography>
+                                    T {token.buys + token.sells}
+                                  </Typography>
+                                  <Typography>
+                                    M {currencies[currency] + formatNumber(currency === 'ERG' ? token.mktCap : token.mktCap * ergExchange, 2)}
+                                  </Typography>
+                                </Grid>
+                                <Grid xs={1}>
+                                  <Typography sx={{ color: theme.palette.up.main }}>
+                                    B {token.buys}
+                                  </Typography>
+                                  <Typography sx={{ color: theme.palette.down.main }}>
+                                    S {token.sells}
+                                  </Typography>
+                                </Grid>
+                              </Grid>
+                            </Box>
+                          )
+                        })}
+                        <Box ref={view} sx={{ minHeight: '24px' }}>
+                          {noMore &&
+                            <Typography color="text.secondary" sx={{ my: 2, textAlign: 'center', fontStyle: 'italic' }}>
+                              All tokens loaded.
+                            </Typography>
+                          }
+                          {loading && <BouncingDotsLoader />}
+                        </Box>
+                      </>
+                    )}
+              </Box>
+            </>
+          )
+          : (
+            <>
+              <Box sx={{ py: 1 }}>
+                <Grid container spacing={1} alignItems="center">
+                  <Grid xs={4} sm={6}>
+                    <Typography sx={{ ml: 2 }}>
+                      Token
+                    </Typography>
+                  </Grid>
+                  <Grid xs={4} sm={3}>
+                    <Typography>
+                      Price
+                    </Typography>
+                    <Typography>
+                      % Change
+                    </Typography>
+                  </Grid>
+                  <Grid xs={4} sm={3}>
+                    <Typography>
+                      Volume
+                    </Typography>
+                    <Typography>
+                      Transactions
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+              <Box sx={{
+                // height: 'calc(70vh)', 
+                // overflowY: 'scroll', 
+                overflowX: 'hidden'
+              }}>
+                {loading && initialLoading
+                  ? (
+                    <Box sx={{ position: 'relative', minHeight: '300px' }}>
+                      <Box sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                        <Box sx={{ mb: 2 }}>
+                          <CircularProgress size={60} />
+                        </Box>
+                        <Typography>
+                          Loading assets...
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ) :
+
+                  error ? (
+                    <Box sx={{ position: 'relative', minHeight: '300px' }}>
+                      <Box sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                        <Typography sx={{ mb: 2 }}>
+                          {error}
+                        </Typography>
+                        <Button variant="outlined" onClick={() => window.location.reload()}>
+                          Reload the page
+                        </Button>
+                      </Box>
+                    </Box>
+                  )
+                    : (
+                      <>
+                        {filteredTokens.map((token, i) => {
+                          return (
+                            <Box key={`${token.tokenId}-${i}`}
+                              sx={{
+                                py: 1,
+                                background: i % 2 ? '' : theme.palette.background.paper,
+                                userSelect: 'none',
+                                '&:hover': {
+                                  background: theme.palette.background.hover,
+                                  cursor: 'pointer'
+                                }
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                router.push(`/tokens/${token.tokenId}`)
+                              }}
+                            >
+                              <Grid container spacing={2} alignItems="center">
+                                <Grid xs>
+                                  <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1, ml: 1 }}>
+                                    <Box
+                                    // sx={{ display: { xs: 'none', sm: 'flex' } }}
+                                    >
+                                      <Avatar src={token.icon} sx={{ width: { xs: '20px', sm: '36px' }, height: { xs: '20px', sm: '36px' } }} />
+                                    </Box>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                      <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {token.name}
+                                      </Typography>
+                                      <Typography sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {token.ticker.toUpperCase()}
+                                      </Typography>
+                                    </Box>
+                                  </Box>
+                                </Grid>
+                                <Grid xs={4} sm={3}>
+                                  <Typography>
+                                    {currencies[currency] + formatNumber(currency === 'ERG' ? token.price : token.price * ergExchange, 4)}
+                                  </Typography>
+                                  <Typography>
+                                    {formatPercent(token.pctChange1d * 100)}
+                                  </Typography>
+                                </Grid>
+                                <Grid xs={4} sm={3}>
+                                  <Typography>
+                                    V {currencies[currency] + formatNumber(currency === 'ERG' ? token.vol : token.vol * ergExchange, 2)}
+                                  </Typography>
+                                  <Typography>
+                                    T {token.buys + token.sells}
+                                  </Typography>
+                                </Grid>
+                              </Grid>
+                            </Box>
+                          )
+                        })}
+                        <Box ref={view} sx={{ minHeight: '24px' }}>
+                          {noMore &&
+                            <Typography color="text.secondary" sx={{ my: 2, textAlign: 'center', fontStyle: 'italic' }}>
+                              All tokens loaded.
+                            </Typography>
+                          }
+                          {loading && <BouncingDotsLoader />}
+                        </Box>
+                      </>)}
+              </Box>
+            </>
+          )}
+      </Paper>
+    </Container >
+  )
+}
+
+export default Tokens
