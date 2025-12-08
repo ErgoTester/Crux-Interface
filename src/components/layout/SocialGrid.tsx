@@ -58,6 +58,7 @@ const SocialGrid: FC<Props> = (props) => {
           <TelegramIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
       {discord && <Grid item>
         <Link
           href={discord}
@@ -68,6 +69,7 @@ const SocialGrid: FC<Props> = (props) => {
           <DiscordIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
       {twitter && <Grid item>
         <Link
           href={twitter}
@@ -78,6 +80,7 @@ const SocialGrid: FC<Props> = (props) => {
           <TwitterIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
       {youtube && <Grid item>
         <Link
           href={youtube}
@@ -88,6 +91,8 @@ const SocialGrid: FC<Props> = (props) => {
           <YoutubeIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
+      {/* ---- GitHub Added Here ---- */}
       {github && <Grid item>
         <Link
           href={github}
@@ -98,6 +103,8 @@ const SocialGrid: FC<Props> = (props) => {
           <GithubIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+      {/* -------------------------- */}
+
       {medium && <Grid item>
         <Link
           href={medium}
@@ -108,6 +115,7 @@ const SocialGrid: FC<Props> = (props) => {
           <MediumIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
       {linkedin && <Grid item>
         <Link
           href={linkedin}
@@ -118,6 +126,7 @@ const SocialGrid: FC<Props> = (props) => {
           <LinkedinIcon sx={{ fontSize: "inherit" }} />
         </Link>
       </Grid>}
+
       {reddit && <Grid item>
         <Link
           href={reddit}
