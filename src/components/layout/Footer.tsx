@@ -279,7 +279,7 @@ const Footer: FC = () => {
             <SocialGrid
               telegram="https://t.me/CruxFinance"
               discord="https://discord.gg/tZEd3PadtD"
-              // github=""
+              github="https://github.com/cruxfinance"
               twitter="https://twitter.com/cruxfinance"
             // medium=""
             />
